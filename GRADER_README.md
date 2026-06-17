@@ -1,0 +1,173 @@
+# LLM Question Grader
+
+Система автоматической оценки качества экзаменационных вопросов с использованием Deepseek LLM.
+
+## Установка и настройка
+
+### 1. Настройка переменных окружения
+
+Добавьте в файл `.env`:
+
+```env
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
+DEEPSEEK_API_URL=https://api.deepseek.com/v1/chat/completions
+DEEPSEEK_MODEL=deepseek-chat
+```
+
+### 2. Получение API ключа Deepseek
+
+1. Зарегистрируйтесь на [https://platform.deepseek.com](https://platform.deepseek.com)
+2. Перейдите в раздел API Keys
+3. Создайте новый ключ
+4. Скопируйте ключ в `.env`
+
+## Использование
+
+### Запуск оценки вопросов
+
+```bash
+php artisan grade:questions
+```
+
+Команда:
+- Читает вопросы из файла `questions/questions.json`
+- Отправляет каждый вопрос в Deepseek для оценки
+- Сохраняет результаты в файл `grades.json`
+- Кеширует оценки в `storage/app/grades_cache.json`
+
+### Формат входных данных
+
+Файл `questions/questions.json` должен содержать массив объектов:
+
+```json
+[
+  {
+    "id": "q_acb7e7",
+    "question": "Question text?",
+    "answer": "Correct answer",
+    "distractors": [
+      "Wrong answer 1",
+      "Wrong answer 2",
+      "Wrong answer 3",
+      "Wrong answer 4"
+    ],
+    "explanation": "Explanation why the answer is correct"
+  }
+]
+```
+
+### Формат выходных данных
+
+Файл `grades.json`:
+
+```json
+{
+  "results": {
+    "q_acb7e7": 8,
+    "q_9d41de": 2
+  }
+}
+```
+
+## Критерии оценки
+
+Каждый вопрос оценивается по 4 критериям (1-10):
+
+1. **Content Validity** - Содержательная корректность
+   - Проверяет ли вопрос важное знание, а не тривиальный факт?
+
+2. **Construct Clarity** - Четкость конструкции
+   - Ясна и однозначна ли формулировка вопроса?
+
+3. **Distractor Quality** - Качество дистракторов
+   - Правдоподобны ли неправильные ответы?
+   - Нет ли среди них очевидно неверных?
+
+4. **Explanation Usefulness** - Полезность объяснения
+   - Раскрывает ли объяснение причину правильности ответа?
+
+Финальная оценка (`final_grade`) вычисляется на основе этих 4 критериев.
+
+## Особенности работы
+
+### Кеширование
+
+При первом запуске команды все оценки сохраняются в кеш (`storage/app/grades_cache.json`).
+
+При повторном запуске:
+- Оценки берутся из кеша
+- Новые запросы к API не отправляются
+- Выполнение происходит мгновенно
+
+Чтобы пересчитать оценки заново, удалите файл кеша:
+```bash
+rm storage/app/grades_cache.json
+```
+
+### Обработка ошибок
+
+Система надежна и устойчива к ошибкам:
+
+- **Ретраи**: При ошибке API запрос повторяется до 3 раз с задержкой (1, 2, 4 сек)
+- **Дефолтная оценка**: Если после 3 попыток оценку получить не удалось, присваивается оценка 1
+- **Логирование**: Все ошибки записываются в `storage/logs/laravel.log`
+- **Код выхода**: Команда завершается с кодом 0 даже при частичных ошибках
+
+### Логирование
+
+Просмотр логов в реальном времени:
+```bash
+tail -f storage/logs/laravel.log
+```
+
+Логи содержат:
+- Информацию об использовании кеша
+- Успешные оценки
+- Ошибки и ретраи
+- Итоговую статистику
+
+## Архитектура
+
+Система построена на принципах SOLID:
+
+```
+app/
+├── Console/Commands/
+│   └── GradeQuestionsCommand.php       # Artisan команда
+├── DTO/
+│   ├── QuestionDTO.php                 # Объект вопроса
+│   └── GradeResultDTO.php              # Объект результата оценки
+├── Services/
+│   ├── Llm/
+│   │   ├── LlmClientInterface.php      # Интерфейс LLM клиента
+│   │   ├── DeepseekClient.php          # Реализация для Deepseek
+│   │   ├── GradeCacheInterface.php     # Интерфейс кеша
+│   │   └── FileCacheRepository.php     # Файловый кеш
+│   └── QuestionGrader/
+│       ├── QuestionGraderService.php   # Основной сервис
+│       ├── PromptBuilder.php           # Построение промптов
+│       └── RetryHandler.php            # Механизм ретраев
+```
+
+## Расширение
+
+### Замена LLM провайдера
+
+Чтобы использовать другой LLM (OpenAI, Claude и т.д.):
+
+1. Создайте новый класс, реализующий `LlmClientInterface`
+2. Обновите биндинг в `AppServiceProvider`:
+```php
+$this->app->singleton(LlmClientInterface::class, YourNewClient::class);
+```
+
+### Изменение критериев оценки
+
+Отредактируйте метод `buildPrompt()` в классе `PromptBuilder`.
+
+## Стоимость использования
+
+Deepseek API:
+- Модель `deepseek-chat`: ~$0.14 за 1M входных токенов
+- Для 60 вопросов: ~$0.01-0.02 за полный прогон
+- Кеширование позволяет избежать повторных затрат
