@@ -1,0 +1,26 @@
+[
+  {
+    "id": "test_q1",
+    "question": "What is the capital of France?",
+    "answer": "Paris",
+    "distractors": [
+      "London",
+      "Berlin",
+      "Madrid",
+      "Rome"
+    ],
+    "explanation": "Paris is the capital and most populous city of France."
+  },
+  {
+    "id": "test_q2",
+    "question": "Which programming language is known for its use in web development and has a mascot of an elephant?",
+    "answer": "PHP",
+    "distractors": [
+      "Python",
+      "JavaScript",
+      "Ruby",
+      "Java"
+    ],
+    "explanation": "PHP (Hypertext Preprocessor) is a server-side scripting language designed for web development, and its mascot is an elephant named elePHPant."
+  }
+]
